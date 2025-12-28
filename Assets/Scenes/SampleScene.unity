@@ -526,6 +526,7 @@ MonoBehaviour:
   punchingParam: punching
   blockingParam: blocking
   kickTriggerParam: Kick
+  runSpeedMultParam: runspeed
   handsLayerName: HandsLayer
   kickStateName: Kick
   runBlendStateName: RunBlend
@@ -1189,6 +1190,7 @@ MonoBehaviour:
   punchingParam: punching
   blockingParam: blocking
   kickTriggerParam: kick
+  runSpeedMultParam: runspeed
   handsLayerName: HandsLayer
   kickStateName: Kick
   runBlendStateName: RunBlend
@@ -1201,7 +1203,7 @@ MonoBehaviour:
   knockbackMultiplierMax: 1.4
   forwardKnockbackMultWeight: 0.7
   upKnockbackMultWeight: 0.7
-  hitCooldownPerTarget: 0.12
+  hitCooldownPerTarget: 0.2
   kickWindupSeconds: 0.1
   kickActiveWindowSeconds: 0.12
   requireKickStateForHit: 1
