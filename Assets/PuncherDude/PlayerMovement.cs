@@ -1,10 +1,13 @@
 using System.Collections.Generic;
+using FishNet.Connection;
+using FishNet.Object;
+using FishNet.Object.Synchronizing;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 [DisallowMultipleComponent]
 [RequireComponent(typeof(Rigidbody))]
-public class BoxerRigidbodyController : MonoBehaviour
+public class BoxerRigidbodyController : NetworkBehaviour
 {
     [Header("References")]
     [SerializeField] private Animator animator;
@@ -75,13 +78,16 @@ public class BoxerRigidbodyController : MonoBehaviour
     [Header("Hit Filtering")]
     [SerializeField] private string hittableTag = "Player";
 
-    [Header("BlockMult")]
+    [Header("Block Mult")]
     [SerializeField] private float blockMult = 2f;
-    
+
     private float originalMass;
     private float originalSpeed;
+
     private int _handsLayerIndex = -1;
     private Rigidbody _rb;
+
+    // InputSystem only for local owner
     private InputSystem_Actions _inputActions;
 
     private struct InputState
@@ -96,41 +102,71 @@ public class BoxerRigidbodyController : MonoBehaviour
     }
 
     private InputState _in;
+
+    // Server-side authoritative input snapshot (sent from owner).
+    private struct NetInput
+    {
+        public Vector2 move;
+        public float yawLookX;
+        public bool punchHeld;
+        public bool blockHeld;
+        public bool dashPressed;
+        public bool kickPressed;
+    }
+
+    private NetInput _serverInput;
+
     private float _nextDashAllowedTime;
+    private bool _kickPending;
+    private float _kickHitOpensAt;
+    private float _kickHitClosesAt;
+    private float _disableGroundStickUntil = -1f;
 
     private readonly Dictionary<int, float> _nextAllowedHitTimeByTargetId = new Dictionary<int, float>(32);
     private readonly List<int> _tempRemoveList = new List<int>(64);
 
-    private bool _kickPending;
-    private float _kickHitOpensAt;
-    private float _kickHitClosesAt;
+    // FishNet 4.6+: SyncVar<T> (attribute is obsolete)
+    private readonly SyncVar<float> _netRunForward = new SyncVar<float>();
+    private readonly SyncVar<float> _netRunLeft = new SyncVar<float>();
+    private readonly SyncVar<bool> _netPunching = new SyncVar<bool>();
+    private readonly SyncVar<bool> _netBlocking = new SyncVar<bool>();
+    private readonly SyncVar<bool> _netKickEdge = new SyncVar<bool>(); // edge flag
 
-    private float _disableGroundStickUntil = -1f;
+    private bool _kickEdgeConsumed;
 
-    private void Awake()
+    public override void OnStartNetwork()
     {
+        base.OnStartNetwork();
+
         _rb = GetComponent<Rigidbody>();
         originalMass = _rb.mass;
         originalSpeed = moveSpeed;
         _rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-        _inputActions = new InputSystem_Actions();
         CacheHandsLayerIndex();
     }
 
-    private void CacheHandsLayerIndex()
+    public override void OnStartClient()
     {
-        if (animator == null)
-        {
-            _handsLayerIndex = -1;
-            return;
-        }
+        base.OnStartClient();
 
-        _handsLayerIndex = animator.GetLayerIndex(handsLayerName);
+        // FishNet rule: don't use IsOwner here; use base.Owner.IsLocalClient
+        if (base.Owner != null && base.Owner.IsLocalClient)
+            SetupLocalInput();
     }
 
-    private void OnEnable()
+    public override void OnStopClient()
     {
+        base.OnStopClient();
+        TeardownLocalInput();
+    }
+
+    private void SetupLocalInput()
+    {
+        if (_inputActions != null)
+            return;
+
+        _inputActions = new InputSystem_Actions();
         _inputActions.Enable();
 
         _inputActions.Player.Move.performed += OnMove;
@@ -150,8 +186,11 @@ public class BoxerRigidbodyController : MonoBehaviour
         _inputActions.Player.Kick.started += OnKick;
     }
 
-    private void OnDisable()
+    private void TeardownLocalInput()
     {
+        if (_inputActions == null)
+            return;
+
         _inputActions.Player.Move.performed -= OnMove;
         _inputActions.Player.Move.canceled -= OnMove;
 
@@ -169,52 +208,119 @@ public class BoxerRigidbodyController : MonoBehaviour
         _inputActions.Player.Kick.started -= OnKick;
 
         _inputActions.Disable();
+        _inputActions = null;
+    }
+
+    private void CacheHandsLayerIndex()
+    {
+        if (animator == null)
+        {
+            _handsLayerIndex = -1;
+            return;
+        }
+        _handsLayerIndex = animator.GetLayerIndex(handsLayerName);
     }
 
     private void Update()
     {
-        float t = 1f - Mathf.Exp(-inputLerpSpeed * Time.deltaTime);
-        _in.moveSmoothed = Vector2.Lerp(_in.moveSmoothed, _in.moveRaw, t);
-
-        if (animator != null)
+        // Local owner: smooth and send input.
+        if (base.Owner != null && base.Owner.IsLocalClient)
         {
-            if (_in.kickPressed)
-                animator.SetTrigger(kickTriggerParam);
+            float t = 1f - Mathf.Exp(-inputLerpSpeed * Time.deltaTime);
+            _in.moveSmoothed = Vector2.Lerp(_in.moveSmoothed, _in.moveRaw, t);
 
-            animator.SetFloat(runForwardParam, Mathf.Clamp(_in.moveSmoothed.y, -1f, 1f));
-            animator.SetFloat(runLeftParam, Mathf.Clamp(-_in.moveSmoothed.x, -1f, 1f));
-            animator.SetBool(punchingParam, _in.punchHeld);
-            animator.SetBool(blockingParam, _in.blockHeld);
-
-            UpdateHandsLayerWeightFromBaseLayer();
+            SendInputToServer();
         }
 
+        // Everyone: animate from replicated state.
+        UpdateAnimatorFromNetState();
+    }
+
+    private void FixedUpdate()
+    {
+        // Server-only physics and hit logic.
+        if (!IsServerInitialized)
+            return;
+
+        ApplyYawRotation_Server();
+        ApplyMoveAndDash_Server();
+        CleanupHitCooldownCache();
+    }
+
+    private void SendInputToServer()
+    {
+        // Package owner snapshot and clear one-frame buttons.
+        Vector2 move = _in.moveSmoothed;
+        float yawLookX = _in.look.x;
+
+        bool punchHeld = _in.punchHeld;
+        bool blockHeld = _in.blockHeld;
+        bool dashPressed = _in.dashPressed;
+        bool kickPressed = _in.kickPressed;
+
+        _in.dashPressed = false;
         _in.kickPressed = false;
-        if (_in.blockHeld && !IsBaseLayerInOrTransitioningKick())
+        _in.look = Vector2.zero;
+
+        SubmitInputServerRpc(move, yawLookX, punchHeld, blockHeld, dashPressed, kickPressed);
+    }
+
+    [ServerRpc]
+    private void SubmitInputServerRpc(Vector2 move, float yawLookX, bool punchHeld, bool blockHeld, bool dashPressed, bool kickPressed)
+    {
+        _serverInput.move = move;
+        _serverInput.yawLookX = yawLookX;
+        _serverInput.punchHeld = punchHeld;
+        _serverInput.blockHeld = blockHeld;
+        _serverInput.dashPressed = dashPressed;
+        _serverInput.kickPressed = kickPressed;
+
+        _netRunForward.Value = Mathf.Clamp(move.y, -1f, 1f);
+        _netRunLeft.Value = Mathf.Clamp(-move.x, -1f, 1f);
+        _netPunching.Value = punchHeld;
+        _netBlocking.Value = blockHeld;
+
+        if (kickPressed)
+            _netKickEdge.Value = true;
+    }
+
+    private void UpdateAnimatorFromNetState()
+    {
+        if (animator == null)
+            return;
+
+        bool kickEdge = _netKickEdge.Value;
+        if (kickEdge && !_kickEdgeConsumed)
+        {
+            animator.SetTrigger(kickTriggerParam);
+            _kickEdgeConsumed = true;
+        }
+        if (!kickEdge)
+        {
+            _kickEdgeConsumed = false;
+        }
+
+        animator.SetFloat(runForwardParam, _netRunForward.Value);
+        animator.SetFloat(runLeftParam, _netRunLeft.Value);
+        animator.SetBool(punchingParam, _netPunching.Value);
+        animator.SetBool(blockingParam, _netBlocking.Value);
+
+        UpdateHandsLayerWeightFromBaseLayer();
+
+        if (_netBlocking.Value && !IsBaseLayerInOrTransitioningKick())
         {
             _rb.mass = originalMass * blockMult;
             moveSpeed = originalSpeed / blockMult;
-            animator.SetFloat(runSpeedMultParam, 1f / blockMult);
+            if (!string.IsNullOrEmpty(runSpeedMultParam))
+                animator.SetFloat(runSpeedMultParam, 1f / blockMult);
         }
         else
         {
             _rb.mass = originalMass;
             moveSpeed = originalSpeed;
-            animator.SetFloat(runSpeedMultParam, 1f);
+            if (!string.IsNullOrEmpty(runSpeedMultParam))
+                animator.SetFloat(runSpeedMultParam, 1f);
         }
-        if (_kickPending && Time.time > _kickHitClosesAt)
-            _kickPending = false;
-    }
-
-    private void FixedUpdate()
-    {
-        ApplyYawRotation();
-        ApplyMoveAndDash();
-
-        _in.dashPressed = false;
-        _in.look = Vector2.zero;
-
-        CleanupHitCooldownCache();
     }
 
     private void UpdateHandsLayerWeightFromBaseLayer()
@@ -274,9 +380,9 @@ public class BoxerRigidbodyController : MonoBehaviour
         return false;
     }
 
-    private void ApplyYawRotation()
+    private void ApplyYawRotation_Server()
     {
-        float yawDelta = _in.look.x * yawSensitivity;
+        float yawDelta = _serverInput.yawLookX * yawSensitivity;
         float maxDelta = maxYawSpeedDeg * Time.fixedDeltaTime;
         yawDelta = Mathf.Clamp(yawDelta, -maxDelta, maxDelta);
 
@@ -284,9 +390,9 @@ public class BoxerRigidbodyController : MonoBehaviour
             _rb.MoveRotation(_rb.rotation * Quaternion.Euler(0f, yawDelta, 0f));
     }
 
-    private void ApplyMoveAndDash()
+    private void ApplyMoveAndDash_Server()
     {
-        Vector3 local = new Vector3(_in.moveSmoothed.x, 0f, _in.moveSmoothed.y);
+        Vector3 local = new Vector3(_serverInput.move.x, 0f, _serverInput.move.y);
         local = Vector3.ClampMagnitude(local, 1f);
 
         Vector3 worldDir = (transform.right * local.x + transform.forward * local.z);
@@ -301,7 +407,18 @@ public class BoxerRigidbodyController : MonoBehaviour
                 _rb.linearVelocity = new Vector3(v0.x, groundStickVelocity, v0.z);
         }
 
-        if (_in.dashPressed && Time.time >= _nextDashAllowedTime)
+        if (_serverInput.kickPressed)
+        {
+            float now = Time.time;
+            _kickPending = true;
+            _kickHitOpensAt = now + kickWindupSeconds;
+            _kickHitClosesAt = _kickHitOpensAt + Mathf.Max(0f, kickActiveWindowSeconds);
+        }
+
+        if (_kickPending && Time.time > _kickHitClosesAt)
+            _kickPending = false;
+
+        if (_serverInput.dashPressed && Time.time >= _nextDashAllowedTime)
         {
             _nextDashAllowedTime = Time.time + dashCooldown;
 
@@ -340,6 +457,10 @@ public class BoxerRigidbodyController : MonoBehaviour
                 _rb.linearVelocity = new Vector3(newHoriz.x, curVel.y, curVel.z);
             }
         }
+
+        // Clear edge after server tick so clients can re-consume next kick.
+        if (_netKickEdge.Value)
+            _netKickEdge.Value = false;
     }
 
     private bool IsGrounded()
@@ -358,6 +479,7 @@ public class BoxerRigidbodyController : MonoBehaviour
 
     private void OnTriggerStay(Collider other)
     {
+        if (!IsServerInitialized) return;
         if (!enabled || other == null) return;
         if (other.attachedRigidbody == _rb) return;
 
@@ -377,7 +499,7 @@ public class BoxerRigidbodyController : MonoBehaviour
         if (kickReady && requireKickStateForHit && !IsBaseLayerInOrTransitioningKick())
             kickReady = false;
 
-        bool punchReady = _in.punchHeld;
+        bool punchReady = _serverInput.punchHeld;
 
         if (!kickReady && !punchReady)
             return;
@@ -435,16 +557,7 @@ public class BoxerRigidbodyController : MonoBehaviour
     private void OnJump(InputAction.CallbackContext ctx) => _in.dashPressed = true;
     private void OnPunch(InputAction.CallbackContext ctx) => _in.punchHeld = ctx.phase != InputActionPhase.Canceled;
     private void OnBlock(InputAction.CallbackContext ctx) => _in.blockHeld = ctx.phase != InputActionPhase.Canceled;
-
-    private void OnKick(InputAction.CallbackContext ctx)
-    {
-        _in.kickPressed = true;
-
-        float now = Time.time;
-        _kickPending = true;
-        _kickHitOpensAt = now + kickWindupSeconds;
-        _kickHitClosesAt = _kickHitOpensAt + Mathf.Max(0f, kickActiveWindowSeconds);
-    }
+    private void OnKick(InputAction.CallbackContext ctx) => _in.kickPressed = true;
 
     private void OnDrawGizmosSelected()
     {

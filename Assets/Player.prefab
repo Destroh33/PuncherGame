@@ -10,11 +10,18 @@ GameObject:
   m_Component:
   - component: {fileID: 2696712467048030886}
   - component: {fileID: 7417563397333640246}
-  - component: {fileID: 7278833049817158860}
   - component: {fileID: 7852074317539528960}
   - component: {fileID: 2842868238896400975}
   - component: {fileID: 1929305692089013964}
   - component: {fileID: 6792903686804667202}
+  - component: {fileID: -4423082800148729698}
+  - component: {fileID: -4137449106077490416}
+  - component: {fileID: 6759152832974796821}
+  - component: {fileID: -7614335559365608685}
+  - component: {fileID: -7356551537024723481}
+  - component: {fileID: 4686159698777011092}
+  - component: {fileID: 6946586845989216466}
+  - component: {fileID: 1345343967628487573}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -63,62 +70,8 @@ Rigidbody:
   m_UseGravity: 1
   m_IsKinematic: 0
   m_Interpolate: 0
-  m_Constraints: 112
-  m_CollisionDetection: 0
---- !u!114 &7278833049817158860
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4081845051979697095}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 3a7c909dd43a33e48b08dd716d2256ab, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BoxerRigidbodyController
-  animator: {fileID: 6797778577783343206}
-  moveSpeed: 6
-  groundAcceleration: 40
-  airAcceleration: 20
-  airBrake: 0
-  yawSensitivity: 0.42
-  maxYawSpeedDeg: 720
-  dashImpulse: 8
-  dashUpImpulse: 2
-  dashCooldown: 0.35
-  inputLerpSpeed: 18
-  groundMask:
-    serializedVersion: 2
-    m_Bits: 55
-  groundCheckRadius: 0.1
-  groundCheckDistance: 0.05
-  groundStickVelocity: -2
-  disableGroundStickAfterDash: 0.08
-  runForwardParam: forward
-  runLeftParam: left
-  punchingParam: punching
-  blockingParam: blocking
-  kickTriggerParam: kick
-  runSpeedMultParam: runspeed
-  handsLayerName: HandsLayer
-  kickStateName: Kick
-  runBlendStateName: RunBlend
-  punchForwardImpulse: 1.5
-  punchUpImpulse: 1
-  kickForwardImpulse: 6
-  kickUpImpulse: 6
-  knockbackSpeedToMultiplier: 0.08
-  knockbackMultiplierMin: 0.5
-  knockbackMultiplierMax: 1.4
-  forwardKnockbackMultWeight: 0.7
-  upKnockbackMultWeight: 0.7
-  hitCooldownPerTarget: 0.2
-  kickWindupSeconds: 0.1
-  kickActiveWindowSeconds: 0.12
-  requireKickStateForHit: 1
-  hittableTag: Player
-  blockMult: 3
+  m_Constraints: 80
+  m_CollisionDetection: 1
 --- !u!65 &7852074317539528960
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -179,7 +132,15 @@ MonoBehaviour:
   <ComponentIndex>k__BackingField: 0
   <PredictedSpawn>k__BackingField: {fileID: 0}
   <PredictedOwner>k__BackingField: {fileID: 0}
-  NetworkBehaviours: []
+  NetworkBehaviours:
+  - {fileID: 6792903686804667202}
+  - {fileID: -4423082800148729698}
+  - {fileID: -4137449106077490416}
+  - {fileID: 6759152832974796821}
+  - {fileID: -7614335559365608685}
+  - {fileID: -7356551537024723481}
+  - {fileID: 6946586845989216466}
+  - {fileID: 1345343967628487573}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -190,30 +151,30 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: 0
+  _initializedTimestamp: -8584346997758460224
   NetworkObserver: {fileID: 0}
-  _enablePrediction: 1
-  _predictionType: 0
-  _graphicalObject: {fileID: 627868749910020636}
+  _enablePrediction: 0
+  _predictionType: 1
+  _graphicalObject: {fileID: 0}
   _detachGraphicalObject: 0
   _enableStateForwarding: 1
-  _networkTransform: {fileID: 0}
-  _ownerInterpolation: 1
-  _ownerSmoothedProperties: 255
+  _networkTransform: {fileID: 6792903686804667202}
+  _ownerInterpolation: 255
+  _ownerSmoothedProperties: 3
   _adaptiveInterpolation: 3
   _spectatorSmoothedProperties: 255
   _spectatorInterpolation: 2
   _enableTeleport: 0
   _teleportThreshold: 1
-  <PrefabId>k__BackingField: 65535
+  <PrefabId>k__BackingField: 1
   <SpawnableCollectionId>k__BackingField: 0
   <AssetPathHash>k__BackingField: 3127767274982672596
   SceneId: 0
   SerializedTransformProperties:
-    Position: {x: 0, y: 0, z: 0}
-    Rotation: {x: 0, y: 0, z: 0, w: 0}
-    Scale: {x: 0, y: 0, z: 0}
-    IsValid: 0
+    Position: {x: 5.51672, y: 3.17, z: 6.56036}
+    Rotation: {x: 0, y: 0, z: 0, w: 1}
+    Scale: {x: 1, y: 1, z: 1}
+    IsValid: 1
 --- !u!114 &6792903686804667202
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -226,25 +187,25 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a2836e36774ca1c4bbbee976e17b649c, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Component.Transforming.NetworkTransform
-  _componentIndexCache: 255
+  _componentIndexCache: 0
   _addedNetworkObject: {fileID: 1929305692089013964}
-  _networkObjectCache: {fileID: 0}
-  _componentConfiguration: 0
+  _networkObjectCache: {fileID: 1929305692089013964}
+  _componentConfiguration: 2
   _synchronizeParent: 0
   _packing:
     Position: 1
     Rotation: 1
     Scale: 0
-  _useScaledTime: 1
-  _interpolation: 2
-  _extrapolation: 2
+  _useScaledTime: 0
+  _interpolation: 4
+  _extrapolation: 0
   _enableTeleport: 0
   _teleportThreshold: 1
-  _clientAuthoritative: 1
+  _clientAuthoritative: 0
   _sendToOwner: 1
   _interval: 1
   _synchronizePosition: 1
-  _positionSensitivity: 0.001
+  _positionSensitivity: 0.00001
   _positionSnapping:
     X: 0
     Y: 0
@@ -260,6 +221,170 @@ MonoBehaviour:
     X: 0
     Y: 0
     Z: 0
+--- !u!114 &-4423082800148729698
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b62feb1952e0254b9b0c22e338c901b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerCommandBuffer
+  _componentIndexCache: 1
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 1929305692089013964}
+--- !u!114 &-4137449106077490416
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 40e953b8f2facb7409501bb508db6ec0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerInputClient
+  _componentIndexCache: 2
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 1929305692089013964}
+  inputLerpSpeed: 18
+--- !u!114 &6759152832974796821
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3175e5fcd9afd5f4f83fd3c8213c943a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerMotorServer
+  _componentIndexCache: 3
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 1929305692089013964}
+  moveSpeed: 6
+  groundAcceleration: 40
+  airAcceleration: 20
+  airBrake: 0
+  yawSensitivity: 0.42
+  maxYawSpeedDeg: 720
+  dashImpulse: 8
+  dashUpImpulse: 2
+  dashCooldown: 0.35
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 55
+  groundCheckRadius: 0.1
+  groundCheckDistance: 0.05
+  groundStickVelocity: -2
+  disableGroundStickAfterDash: 0.08
+--- !u!114 &-7614335559365608685
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2d04784744b3a854890dbcd62a59fb15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerCombatServer
+  _componentIndexCache: 4
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 1929305692089013964}
+  punchForwardImpulse: 2
+  punchUpImpulse: 1.5
+  kickForwardImpulse: 6
+  kickUpImpulse: 6
+  knockbackSpeedToMultiplier: 0.08
+  knockbackMultiplierMin: 0.5
+  knockbackMultiplierMax: 1.4
+  forwardKnockbackMultWeight: 0.7
+  upKnockbackMultWeight: 0.7
+  punchHitCooldownPerTarget: 0.2
+  hittableTag: Player
+  kickWindupSeconds: 0.1
+  kickActiveWindowSeconds: 0.12
+  hitstunSeconds: 0.12
+--- !u!114 &-7356551537024723481
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2adfc7c86d4572a439643d81a389c4be, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerBlockServer
+  _componentIndexCache: 5
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 1929305692089013964}
+  blockMult: 3
+  animator: {fileID: 6797778577783343206}
+  kickStateName: Kick
+--- !u!114 &4686159698777011092
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c68bdd0e87ef8924bbbb4694b90f288b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerAnimatorView
+  animator: {fileID: 6797778577783343206}
+  runForwardParam: forward
+  runLeftParam: left
+  punchingParam: punching
+  blockingParam: blocking
+  kickTriggerParam: kick
+  runSpeedMultParam: runspeed
+  handsLayerName: HandsLayer
+  kickStateName: Kick
+  runBlendStateName: RunBlend
+--- !u!114 &6946586845989216466
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0fc2c1a92c6f14547a886e0aa6ef5759, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::LocalCinemachineBinder
+  _componentIndexCache: 6
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 1929305692089013964}
+  followTarget: {fileID: 2696712467048030886}
+  lookAtTarget: {fileID: 0}
+  virtualCameraObject: {fileID: 0}
+--- !u!114 &1345343967628487573
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: eecb25ab13c5e2d44aff8888d0cc3e78, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ServerPhysicsAuthority
+  _componentIndexCache: 7
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 1929305692089013964}
 --- !u!1001 &1097781204063221239
 PrefabInstance:
   m_ObjectHideFlags: 0
