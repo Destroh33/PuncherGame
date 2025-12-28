@@ -22,6 +22,7 @@ GameObject:
   - component: {fileID: 4686159698777011092}
   - component: {fileID: 6946586845989216466}
   - component: {fileID: 1345343967628487573}
+  - component: {fileID: 4470616102690321169}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -385,6 +386,28 @@ MonoBehaviour:
   _componentIndexCache: 7
   _addedNetworkObject: {fileID: 1929305692089013964}
   _networkObjectCache: {fileID: 1929305692089013964}
+--- !u!114 &4470616102690321169
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f60c4e6a8df28984f813e940276b4e39, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerResourcesServer
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 1929305692089013964}
+  _networkObjectCache: {fileID: 0}
+  maxStamina: 100
+  staminaDecayPerSecond: 2
+  blockDrainPerSecond: 12
+  dashStaminaCost: 15
+  staminaMinToAllowBlock: 1
+  staminaMinToAllowDash: 15
+  punchesToFullPower: 3
 --- !u!1001 &1097781204063221239
 PrefabInstance:
   m_ObjectHideFlags: 0

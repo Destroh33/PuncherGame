@@ -23,9 +23,16 @@ public class BoxerCommandBuffer : NetworkBehaviour
     public readonly SyncVar<bool> NetKickEdge = new SyncVar<bool>();
     public readonly SyncVar<float> NetRunSpeedMult = new SyncVar<float>(1f);
 
-    // NEW: buffer one-frame buttons so FixedUpdate can’t miss them
     private bool _dashQueued;
     private bool _kickQueued;
+
+    private BoxerResourcesServer _resources;
+
+    public override void OnStartNetwork()
+    {
+        base.OnStartNetwork();
+        _resources = GetComponent<BoxerResourcesServer>();
+    }
 
     [ServerRpc]
     public void SubmitInputServerRpc(
@@ -36,38 +43,45 @@ public class BoxerCommandBuffer : NetworkBehaviour
         bool dashPressed,
         bool kickPressed)
     {
-        // Queue edges
+        // Queue edges first
         if (dashPressed) _dashQueued = true;
         if (kickPressed) _kickQueued = true;
+
+        // Resource gating (server authoritative)
+        bool allowBlock = _resources == null || _resources.HasStaminaForBlock;
+        bool allowDash = _resources == null || _resources.HasStaminaForDash;
+        bool allowKick = _resources == null || _resources.HasFullPower;
+
+        bool gatedBlockHeld = blockHeld && allowBlock;
+        bool gatedDashPressed = _dashQueued && allowDash;
+        bool gatedKickPressed = _kickQueued && allowKick;
 
         ServerCmd = new InputCmd
         {
             move = move,
             lookX = lookX,
             punchHeld = punchHeld,
-            blockHeld = blockHeld,
-            // expose queued states to server sim
-            dashPressed = _dashQueued,
-            kickPressed = _kickQueued
+            blockHeld = gatedBlockHeld,
+            dashPressed = gatedDashPressed,
+            kickPressed = gatedKickPressed
         };
 
         NetRunForward.Value = Mathf.Clamp(move.y, -1f, 1f);
         NetRunLeft.Value = Mathf.Clamp(-move.x, -1f, 1f);
         NetPunching.Value = punchHeld;
-        NetBlocking.Value = blockHeld;
+        NetBlocking.Value = gatedBlockHeld;
 
-        if (kickPressed)
+        // Animator kick edge: only if actually allowed
+        if (gatedKickPressed)
             NetKickEdge.Value = true;
     }
 
     [Server]
     public void ConsumeOneFrameButtons()
     {
-        // called from server FixedUpdate AFTER reading ServerCmd
         _dashQueued = false;
         _kickQueued = false;
 
-        // update cmd to reflect consumed state (optional but keeps debug sane)
         var c = ServerCmd;
         c.dashPressed = false;
         c.kickPressed = false;

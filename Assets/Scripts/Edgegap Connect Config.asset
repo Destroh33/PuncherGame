@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1da777050f2a1cb40bb33d8e19e29716, type: 3}
   m_Name: Edgegap Connect Config
   m_EditorClassIdentifier: Assembly-CSharp::EdgegapConnectConfig
-  udpHost: 96f8f2ec46fe.pr.edgegap.net
-  udpPort: 32285
+  udpHost: 52f6a047f1b7.pr.edgegap.net
+  udpPort: 30532
   wsUrl: 

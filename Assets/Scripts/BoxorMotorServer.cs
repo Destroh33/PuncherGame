@@ -33,6 +33,7 @@ public class BoxerMotorServer : NetworkBehaviour
 
     private Rigidbody _rb;
     private BoxerCommandBuffer _cmd;
+    private BoxerResourcesServer _resources;
 
     private float _nextDashAllowedTime;
     private float _disableGroundStickUntil = -1f;
@@ -40,22 +41,17 @@ public class BoxerMotorServer : NetworkBehaviour
     private float _moveSpeedMult = 1f;
     public void SetMoveSpeedMultiplier(float mult) => _moveSpeedMult = Mathf.Max(0.01f, mult);
 
-    // NEW: when hit, disable control briefly so knockback actually moves you.
     private float _controlLockedUntil = -1f;
 
-    // Call this from combat when you apply knockback.
     [Server]
     public void ApplyExternalImpulse(Vector3 impulse, float lockControlSeconds)
     {
-        // Apply instantly (authoritative)
         _rb.AddForce(impulse, ForceMode.Impulse);
 
-        // Lock movement so we don't overwrite the knockback next tick
         float until = Time.time + Mathf.Max(0f, lockControlSeconds);
         if (until > _controlLockedUntil)
             _controlLockedUntil = until;
 
-        // Also prevent ground-stick from killing upward launch for a moment
         _disableGroundStickUntil = Mathf.Max(_disableGroundStickUntil, Time.time + 0.08f);
     }
 
@@ -64,6 +60,7 @@ public class BoxerMotorServer : NetworkBehaviour
         base.OnStartNetwork();
         _rb = GetComponent<Rigidbody>();
         _cmd = GetComponent<BoxerCommandBuffer>();
+        _resources = GetComponent<BoxerResourcesServer>();
         _rb.interpolation = RigidbodyInterpolation.Interpolate;
     }
 
@@ -90,7 +87,6 @@ public class BoxerMotorServer : NetworkBehaviour
 
     private void ApplyMoveAndDash()
     {
-        // If hitstunned, do NOT overwrite velocity with input.
         bool controlLocked = Time.time < _controlLockedUntil;
 
         Vector2 move = _cmd.ServerCmd.move;
@@ -109,10 +105,16 @@ public class BoxerMotorServer : NetworkBehaviour
                 _rb.linearVelocity = new Vector3(v0.x, groundStickVelocity, v0.z);
         }
 
-        // Dash is an input action; allow even if controlLocked? (your choice)
-        // Here: if control is locked due to hit, we ignore dash until recovered.
+        // Dash: only if not controlLocked, cooldown ok, AND stamina spend succeeds
         if (!controlLocked && _cmd.ServerCmd.dashPressed && Time.time >= _nextDashAllowedTime)
         {
+            // If you have resources, require cost payment at the moment of dash.
+            if (_resources != null && !_resources.TrySpendDash())
+            {
+                // Not enough stamina -> no dash
+                return;
+            }
+
             _nextDashAllowedTime = Time.time + dashCooldown;
 
             Vector3 dashDir = worldDir.sqrMagnitude > 0.0001f ? worldDir.normalized : transform.forward;
@@ -128,7 +130,6 @@ public class BoxerMotorServer : NetworkBehaviour
             return;
         }
 
-        // If control locked, stop here: let physics/impulses carry motion.
         if (controlLocked)
             return;
 

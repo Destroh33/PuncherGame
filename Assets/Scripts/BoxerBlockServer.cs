@@ -15,6 +15,7 @@ public class BoxerBlockServer : NetworkBehaviour
     private Rigidbody _rb;
     private BoxerCommandBuffer _cmd;
     private BoxerMotorServer _motor;
+    private BoxerResourcesServer _resources;
 
     private float _originalMass;
 
@@ -24,6 +25,7 @@ public class BoxerBlockServer : NetworkBehaviour
         _rb = GetComponent<Rigidbody>();
         _cmd = GetComponent<BoxerCommandBuffer>();
         _motor = GetComponent<BoxerMotorServer>();
+        _resources = GetComponent<BoxerResourcesServer>();
         _originalMass = _rb.mass;
     }
 
@@ -35,8 +37,17 @@ public class BoxerBlockServer : NetworkBehaviour
         bool blockHeld = _cmd.ServerCmd.blockHeld;
         bool inKick = IsInKickState_Server();
 
+        // If stamina is empty, server gating in CommandBuffer should already turn off blockHeld,
+        // but we double-check here just in case.
+        if (_resources != null && !_resources.HasStaminaForBlock)
+            blockHeld = false;
+
         if (blockHeld && !inKick)
         {
+            // Drain stamina faster while actively blocking
+            if (_resources != null)
+                _resources.DrainForBlocking(Time.fixedDeltaTime);
+
             _rb.mass = _originalMass * blockMult;
 
             if (_motor != null)
@@ -60,7 +71,6 @@ public class BoxerBlockServer : NetworkBehaviour
         if (animator == null)
             return false;
 
-        // This checks the server's animator state; that matches your original behavior.
         var cur = animator.GetCurrentAnimatorStateInfo(0);
         if (cur.IsName(kickStateName))
             return true;

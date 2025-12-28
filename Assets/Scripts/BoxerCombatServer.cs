@@ -34,11 +34,9 @@ public class BoxerCombatServer : NetworkBehaviour
 
     private Rigidbody _rb;
     private BoxerCommandBuffer _cmd;
+    private BoxerResourcesServer _resources;
 
-    // FishNet version you have uses int ObjectId.
     private readonly Dictionary<int, float> _nextAllowedPunchHitTimeByTarget = new Dictionary<int, float>(32);
-
-    // Kicks ignore punch cooldowns, but hit each target once per swing.
     private readonly HashSet<int> _kickHitTargetsThisSwing = new HashSet<int>();
 
     private bool _kickPending;
@@ -50,6 +48,7 @@ public class BoxerCombatServer : NetworkBehaviour
         base.OnStartNetwork();
         _rb = GetComponent<Rigidbody>();
         _cmd = GetComponent<BoxerCommandBuffer>();
+        _resources = GetComponent<BoxerResourcesServer>();
     }
 
     private void Update()
@@ -57,14 +56,23 @@ public class BoxerCombatServer : NetworkBehaviour
         if (!IsServerInitialized || _cmd == null)
             return;
 
+        // Kick is a queued one-frame button from CommandBuffer.
+        // CommandBuffer already gates kickPressed unless power is full.
         if (_cmd.ServerCmd.kickPressed)
         {
+            // Consume power on kick start (server authoritative)
+            if (_resources != null)
+            {
+                // If for any reason power isn't full, deny kick entirely
+                if (!_resources.TryConsumeKickPower())
+                    return;
+            }
+
             float now = Time.time;
             _kickPending = true;
             _kickOpensAt = now + kickWindupSeconds;
             _kickClosesAt = _kickOpensAt + Mathf.Max(0f, kickActiveWindowSeconds);
 
-            // new kick swing -> clear per-swing hit cache
             _kickHitTargetsThisSwing.Clear();
         }
 
@@ -96,7 +104,6 @@ public class BoxerCombatServer : NetworkBehaviour
         if (!kickReady && !punchReady)
             return;
 
-        // KICK: ignore punch cooldowns; only once per kick swing per target
         if (kickReady)
         {
             if (_kickHitTargetsThisSwing.Contains(targetId))
@@ -104,19 +111,19 @@ public class BoxerCombatServer : NetworkBehaviour
 
             ApplyKnockbackToTarget(targetRb, useKick: true);
             _kickHitTargetsThisSwing.Add(targetId);
-
-            // If you want only ONE total hit per kick (not per target), uncomment:
-            // _kickPending = false;
-
             return;
         }
 
-        // PUNCH: per-target cooldown so overlap doesn't spam
+        // PUNCH: per-target cooldown
         if (_nextAllowedPunchHitTimeByTarget.TryGetValue(targetId, out float nextAllowed) && now < nextAllowed)
             return;
 
         ApplyKnockbackToTarget(targetRb, useKick: false);
         _nextAllowedPunchHitTimeByTarget[targetId] = now + punchHitCooldownPerTarget;
+
+        // Award power ONLY when a punch actually lands
+        if (_resources != null)
+            _resources.OnPunchLanded();
     }
 
     private void ApplyKnockbackToTarget(Rigidbody targetRb, bool useKick)
