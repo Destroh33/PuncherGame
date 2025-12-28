@@ -31,10 +31,3 @@ PluginImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 207815
-  packageName: 'FishNet: Networking Evolved'
-  packageVersion: 4.6.18R
-  assetPath: Assets/FishNet/Runtime/Plugins/CodeAnalysis/FishNet.CodeAnalysis.dll
-  uploadId: 826418

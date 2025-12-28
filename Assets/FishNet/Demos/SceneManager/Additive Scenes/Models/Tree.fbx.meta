@@ -95,10 +95,3 @@ ModelImporter:
   userData: 
   assetBundleName: 
   assetBundleVariant: 
-AssetOrigin:
-  serializedVersion: 1
-  productId: 207815
-  packageName: 'FishNet: Networking Evolved'
-  packageVersion: 4.6.18R
-  assetPath: Assets/FishNet/Demos/SceneManager/Additive Scenes/Models/Tree.fbx
-  uploadId: 826418
