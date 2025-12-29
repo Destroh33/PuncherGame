@@ -5183,7 +5183,6 @@ GameObject:
   - component: {fileID: 2067160231}
   - component: {fileID: 2067160238}
   - component: {fileID: 2067160240}
-  - component: {fileID: 2067160241}
   m_Layer: 0
   m_Name: NetworkManager
   m_TagString: Untagged
@@ -5359,20 +5358,6 @@ MonoBehaviour:
   playerPrefab: {fileID: 1929305692089013964, guid: 8794545a56fc37a46b71b6b8a099fce1, type: 3}
   spawnPoints: []
   despawnOnDisconnect: 1
---- !u!114 &2067160241
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2067160230}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 854a88dee77cc584c984f75c62367700, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::AutoClientConnectInEditor
-  config: {fileID: 11400000, guid: 57b45e3699d92e341a85393464fc779f, type: 2}
-  autoConnectInEditor: 1
 --- !u!1 &2093339220
 GameObject:
   m_ObjectHideFlags: 0
