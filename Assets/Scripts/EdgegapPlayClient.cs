@@ -1,335 +1,280 @@
-using System;
+﻿using System;
 using System.Collections;
+using UnityEngine;
+using UnityEngine.Networking;
 using FishNet.Managing;
 using FishNet.Transporting;
 using TMPro;
-using UnityEngine;
-using UnityEngine.Networking;
 using UnityEngine.UI;
 
 [DisallowMultipleComponent]
 public class EdgegapPlayClient : MonoBehaviour
 {
-    [Header("Backend")]
-    [SerializeField] private string backendBaseUrl = "https://edgegap-backend.vercel.app";
-    [SerializeField] private float pollIntervalSeconds = 1.5f;
-    [SerializeField] private float overallTimeoutSeconds = 120f;
+    [Header("Backend Configuration")]
+    [SerializeField] private string backendBaseUrl = "https://edgegap-backend.vercel.app/";
+    [SerializeField] private float pollInterval = 2.0f;
 
-    [Header("Connect")]
-    [Tooltip("How long to wait for FishNet to report Started after we begin connecting.")]
-    [SerializeField] private float connectTimeoutSeconds = 10f;
-
-    [Header("Auto Re-Click Play")]
-    [Tooltip("After the server becomes READY, if we don't connect, we will literally call OnPlayPressed() again.")]
-    [SerializeField] private bool autoRepressPlayOnce = true;
-
-    [Tooltip("Delay before we auto-call OnPlayPressed() again.")]
-    [SerializeField] private float autoRepressDelaySeconds = 1.0f;
-
-    [Header("UI")]
+    [Header("UI References")]
     [SerializeField] private GameObject canvasRoot;
+    [SerializeField] private Button startServerButton;
     [SerializeField] private Button playButton;
     [SerializeField] private TMP_Text statusText;
 
-    [Header("FishNet")]
+    [Header("FishNet References")]
     [SerializeField] private NetworkManager networkManager;
 
-    private Coroutine _routine;
-    private bool _busy;
+    private string _currentRequestId;
+    private bool _isPolling;
 
-    private bool _connectSucceeded;
-    private bool _autoRepressedAlready;
+    private void Start()
+    {
+        // 1. Initial State: Play is DISABLED.
+        playButton.interactable = false;
+        startServerButton.interactable = true;
+
+        startServerButton.onClick.AddListener(OnStartServerPressed);
+        playButton.onClick.AddListener(OnPlayPressed);
+
+        SetStatus("Ready to Start");
+    }
 
     private void OnEnable()
     {
-        if (networkManager != null && networkManager.ClientManager != null)
+        if (networkManager?.ClientManager != null)
             networkManager.ClientManager.OnClientConnectionState += OnClientConnectionState;
     }
 
     private void OnDisable()
     {
-        if (networkManager != null && networkManager.ClientManager != null)
+        if (networkManager?.ClientManager != null)
             networkManager.ClientManager.OnClientConnectionState -= OnClientConnectionState;
     }
 
+    // --- CONNECTION HANDLER ---
+    // Only hides UI when FishNet confirms we are actually connected.
     private void OnClientConnectionState(ClientConnectionStateArgs args)
     {
-        Debug.Log($"[EdgegapPlayClient] ClientConnectionState: {args.ConnectionState}");
         if (args.ConnectionState == LocalConnectionState.Started)
-            _connectSucceeded = true;
+        {
+            Debug.Log("<color=green>[Edgegap]</color> Connected successfully! Hiding UI.");
+            if (canvasRoot) canvasRoot.SetActive(false);
+            StopAllCoroutines();
+        }
+        else if (args.ConnectionState == LocalConnectionState.Stopped)
+        {
+            if (canvasRoot) canvasRoot.SetActive(true);
+            SetStatus("Disconnected");
+            playButton.interactable = true;
+        }
     }
 
-    // Hook this to your Play button OnClick.
-    public void OnPlayPressed()
+    // =================================================================================
+    // SECTION 1: START SERVER (INFRASTRUCTURE ONLY)
+    // =================================================================================
+    // This strictly ONLY spins up the server. It NEVER connects the player.
+
+    public void OnStartServerPressed()
     {
-        if (_busy) return;
-
-        if (networkManager == null)
-        {
-            SetStatus("Missing NetworkManager.");
-            return;
-        }
-
-        if (statusText == null)
-        {
-            Debug.LogError("[EdgegapPlayClient] Missing statusText.");
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(backendBaseUrl))
-        {
-            SetStatus("Missing backendBaseUrl.");
-            return;
-        }
-
-        if (_routine != null)
-            StopCoroutine(_routine);
-
-        _routine = StartCoroutine(PlayRoutine());
+        if (_isPolling) return;
+        startServerButton.interactable = false;
+        StartCoroutine(StartServerFlow());
     }
 
-    private IEnumerator PlayRoutine()
+    private IEnumerator StartServerFlow()
     {
-        _busy = true;
-        _connectSucceeded = false;
+        SetStatus("Requesting Server...");
+        string url = CombineUrl(backendBaseUrl, "/api/play");
 
-        // Only reset this when user manually initiates (first ever press).
-        // If you want it to reset on each manual click, move reset into OnPlayPressed and detect manual.
-        if (!_autoRepressedAlready)
-        {
-            // keep as-is
-        }
-
-        if (playButton != null)
-            playButton.interactable = false;
-
-        string playUrl = CombineUrl(backendBaseUrl, "/api/play");
-
-        string requestId = null;
-        string host = null;
-        int port = 0;
-
-        SetStatus("Finding server...");
-
-        // 1) /api/play
-        yield return PostJson(playUrl, "{}", (ok, bodyOrErr) =>
-        {
+        yield return PostJson(url, "{}", (ok, res) => {
             if (!ok)
             {
-                Debug.LogError($"[EdgegapPlayClient] /api/play failed: {bodyOrErr}");
+                SetStatus("Request Failed");
+                startServerButton.interactable = true;
                 return;
             }
 
-            try
+            BackendResponse data = null;
+            try { data = JsonUtility.FromJson<BackendResponse>(res); } catch { }
+
+            if (data == null)
             {
-                var pr = JsonUtility.FromJson<PlayResponse>(bodyOrErr);
-                requestId = pr.request_id;
-                host = pr.host;
-                port = pr.port;
+                SetStatus("Backend Error");
+                startServerButton.interactable = true;
+                return;
             }
-            catch (Exception e)
+
+            _currentRequestId = data.request_id;
+
+            // IF SERVER IS READY IMMEDIATELY:
+            if (!string.IsNullOrEmpty(data.host) && data.port > 0)
             {
-                Debug.LogError($"[EdgegapPlayClient] /api/play JSON parse error: {e.Message}\n{bodyOrErr}");
+                SetStatus("Server Ready! Press Play.");
+                playButton.interactable = true; // <--- ONLY ENABLE BUTTON
+                // STOP: Do not connect here.
+            }
+            // IF SERVER IS STARTING:
+            else
+            {
+                if (!_isPolling) StartCoroutine(PollStatusLoop());
             }
         });
+    }
 
-        if (string.IsNullOrWhiteSpace(requestId))
+    private IEnumerator PollStatusLoop()
+    {
+        _isPolling = true;
+        float timeout = 120f;
+        float timer = 0f;
+
+        while (timer < timeout)
         {
-            FinishFail("Backend play failed.");
-            yield break;
-        }
+            string url = CombineUrl(backendBaseUrl, "/api/status?request_id=" + _currentRequestId);
+            bool serverReady = false;
 
-        // If /play returned host/port, connect now.
-        if (!string.IsNullOrWhiteSpace(host) && port > 0)
-        {
-            yield return ConnectThenMaybeRepress(host, (ushort)port);
-            yield break;
-        }
+            yield return Get(url, (ok, res) => {
+                if (!ok) return;
 
-        // 2) Poll /api/status until host/port exists
-        string statusUrl = CombineUrl(backendBaseUrl, $"/api/status?request_id={Uri.EscapeDataString(requestId)}");
+                var data = JsonUtility.FromJson<BackendResponse>(res);
+                SetStatus($"Status: {data.status}");
 
-        float started = Time.time;
-        while (Time.time - started < overallTimeoutSeconds)
-        {
-            yield return Get(statusUrl, (ok, bodyOrErr) =>
-            {
-                if (!ok)
+                // IF SERVER BECOMES READY:
+                if (!string.IsNullOrEmpty(data.host) && data.port > 0)
                 {
-                    Debug.LogWarning($"[EdgegapPlayClient] /api/status transient error: {bodyOrErr}");
-                    return;
-                }
-
-                try
-                {
-                    var sr = JsonUtility.FromJson<StatusResponse>(bodyOrErr);
-
-                    if (!string.IsNullOrWhiteSpace(sr.status))
-                        SetStatus($"Server: {sr.status}");
-
-                    if (!string.IsNullOrWhiteSpace(sr.host) && sr.port > 0)
-                    {
-                        host = sr.host;
-                        port = sr.port;
-                    }
-                }
-                catch (Exception e)
-                {
-                    Debug.LogWarning($"[EdgegapPlayClient] /api/status JSON parse error: {e.Message}\n{bodyOrErr}");
+                    SetStatus("Server Ready! Press Play.");
+                    playButton.interactable = true; // <--- ONLY ENABLE BUTTON
+                    serverReady = true;
+                    // STOP: Do not connect here.
                 }
             });
 
-            if (!string.IsNullOrWhiteSpace(host) && port > 0)
-            {
-                yield return ConnectThenMaybeRepress(host, (ushort)port);
-                yield break;
-            }
+            if (serverReady) break;
 
-            yield return new WaitForSeconds(pollIntervalSeconds);
+            yield return new WaitForSeconds(pollInterval);
+            timer += pollInterval;
         }
 
-        FinishFail("Timed out starting server.");
+        if (timer >= timeout)
+        {
+            SetStatus("Timed Out. Try again.");
+            startServerButton.interactable = true;
+        }
+
+        _isPolling = false;
     }
 
-    private IEnumerator ConnectThenMaybeRepress(string host, ushort port)
+    // =================================================================================
+    // SECTION 2: PLAY BUTTON (CONNECT LOGIC)
+    // =================================================================================
+    // This is the ONLY place that attempts a connection.
+
+    public void OnPlayPressed()
     {
-        SetStatus($"Connecting to {host}:{port}...");
+        playButton.interactable = false; // Prevent double-clicks
+        SetStatus("Refreshing Connection Info...");
+        StartCoroutine(RefreshAndConnectSequence());
+    }
 
-        // Start connection
-        bool ok = networkManager.ClientManager.StartConnection(host, port);
-        if (!ok)
-            Debug.LogWarning("[EdgegapPlayClient] StartConnection returned false.");
+    private IEnumerator RefreshAndConnectSequence()
+    {
+        // 1. Get Fresh Info (Just in case the previous info is stale)
+        string url = CombineUrl(backendBaseUrl, "/api/play");
+        string freshHost = "";
+        int freshPort = 0;
+        bool requestSuccess = false;
 
-        // Wait up to connectTimeoutSeconds for Started
-        float t0 = Time.time;
-        while (Time.time - t0 < connectTimeoutSeconds)
-        {
-            if (_connectSucceeded)
+        yield return PostJson(url, "{}", (ok, res) => {
+            if (ok)
             {
-                SetStatus("Connected!");
-                if (canvasRoot != null)
-                    canvasRoot.SetActive(false);
-
-                FinishSuccess();
-                yield break;
+                var data = JsonUtility.FromJson<BackendResponse>(res);
+                if (!string.IsNullOrEmpty(data.host) && data.port > 0)
+                {
+                    freshHost = data.host;
+                    freshPort = data.port;
+                    requestSuccess = true;
+                }
             }
+        });
 
-            yield return null;
-        }
-
-        // If we didn't connect in time, literally "press Play again" once.
-        if (autoRepressPlayOnce && !_autoRepressedAlready)
+        if (!requestSuccess)
         {
-            _autoRepressedAlready = true;
-
-            SetStatus("Server warmed. Retrying Play...");
-
-            // Stop the current routine cleanly before re-invoking.
-            if (_routine != null)
-            {
-                StopCoroutine(_routine);
-                _routine = null;
-            }
-
-            _busy = false; // allow OnPlayPressed to run
-            yield return new WaitForSeconds(autoRepressDelaySeconds);
-
-            OnPlayPressed();
+            SetStatus("Error: Server not found.");
+            playButton.interactable = true;
             yield break;
         }
 
-        FinishFail("Connect timed out. Try again.");
+        // 2. NOW we connect
+        SetStatus($"Connecting to {freshHost}:{freshPort}...");
+        yield return ConnectWithRetry(freshHost, (ushort)freshPort);
     }
 
-    private void FinishSuccess()
+    private IEnumerator ConnectWithRetry(string host, ushort port)
     {
-        _routine = null;
-        _busy = false;
-        // keep play disabled; you're in-game
+        var transport = networkManager.TransportManager.Transport;
+        string cleanHost = host.Replace("wss://", "").Replace("ws://", "")
+                               .Replace("http://", "").Replace("https://", "").TrimEnd('/');
+
+        transport.SetClientAddress(cleanHost);
+        transport.SetPort(port);
+
+        int maxRetries = 10;
+        int attempts = 0;
+
+        while (attempts < maxRetries)
+        {
+            attempts++;
+            SetStatus($"Connecting ({attempts}/10)...");
+
+            networkManager.ClientManager.StartConnection();
+            yield return new WaitForSeconds(2.0f);
+
+            // FIX: Using .IsActive for FishNet
+            if (networkManager.ClientManager.Connection.IsActive)
+            {
+                yield break; // Success!
+            }
+
+            // If failed, stop and retry
+            if (!networkManager.ClientManager.Connection.IsActive)
+            {
+                networkManager.ClientManager.StopConnection();
+            }
+
+            yield return new WaitForSeconds(0.5f);
+        }
+
+        SetStatus("Connection Failed. Server may be loading.");
+        playButton.interactable = true;
     }
 
-    private void FinishFail(string msg)
-    {
-        _routine = null;
-        _busy = false;
-        if (playButton != null)
-            playButton.interactable = true;
-        SetStatus(msg);
-    }
+    // --- HELPERS ---
+    private void SetStatus(string s) { if (statusText) statusText.text = s; }
 
-    private void SetStatus(string s)
-    {
-        if (statusText != null)
-            statusText.text = s;
-    }
-
-    private static string CombineUrl(string baseUrl, string path)
-    {
-        if (string.IsNullOrEmpty(baseUrl)) return path ?? "";
-        if (string.IsNullOrEmpty(path)) return baseUrl;
-
-        baseUrl = baseUrl.TrimEnd('/');
-        path = path.StartsWith("/") ? path : "/" + path;
-        return baseUrl + path;
-    }
-
-    private IEnumerator PostJson(string url, string jsonBody, Action<bool, string> onDone)
+    private IEnumerator PostJson(string url, string json, Action<bool, string> cb)
     {
         using var req = new UnityWebRequest(url, "POST");
-        byte[] payload = System.Text.Encoding.UTF8.GetBytes(jsonBody ?? "{}");
-        req.uploadHandler = new UploadHandlerRaw(payload);
+        byte[] bodyRaw = System.Text.Encoding.UTF8.GetBytes(json);
+        req.uploadHandler = new UploadHandlerRaw(bodyRaw);
         req.downloadHandler = new DownloadHandlerBuffer();
         req.SetRequestHeader("Content-Type", "application/json");
-
         yield return req.SendWebRequest();
-
-        if (req.result != UnityWebRequest.Result.Success)
-        {
-            onDone?.Invoke(false, $"{req.responseCode} {req.error}\n{req.downloadHandler.text}");
-            yield break;
-        }
-
-        onDone?.Invoke(true, req.downloadHandler.text);
+        cb?.Invoke(req.result == UnityWebRequest.Result.Success, req.downloadHandler.text);
     }
 
-    private IEnumerator Get(string url, Action<bool, string> onDone)
+    private IEnumerator Get(string url, Action<bool, string> cb)
     {
         using var req = UnityWebRequest.Get(url);
-        req.downloadHandler = new DownloadHandlerBuffer();
-
         yield return req.SendWebRequest();
-
-        if (req.result != UnityWebRequest.Result.Success)
-        {
-            onDone?.Invoke(false, $"{req.responseCode} {req.error}\n{req.downloadHandler.text}");
-            yield break;
-        }
-
-        onDone?.Invoke(true, req.downloadHandler.text);
+        cb?.Invoke(req.result == UnityWebRequest.Result.Success, req.downloadHandler.text);
     }
+
+    private string CombineUrl(string b, string p) => b.TrimEnd('/') + "/" + p.TrimStart('/');
 
     [Serializable]
-    private class PlayResponse
-    {
-        public bool reused;
-        public string request_id;
-        public string status;
-        public string host;
-        public int port;
-    }
-
-    [Serializable]
-    private class StatusResponse
+    private class BackendResponse
     {
         public string request_id;
-        public string status;
         public string host;
         public int port;
-    }
-
-    // Optional: call this when you disconnect / return to menu so auto-press can happen again.
-    public void ResetAutoRepress()
-    {
-        _autoRepressedAlready = false;
+        public string status;
     }
 }
