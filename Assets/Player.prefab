@@ -10,7 +10,6 @@ GameObject:
   m_Component:
   - component: {fileID: 2696712467048030886}
   - component: {fileID: 7417563397333640246}
-  - component: {fileID: 7852074317539528960}
   - component: {fileID: 2842868238896400975}
   - component: {fileID: 1929305692089013964}
   - component: {fileID: 6792903686804667202}
@@ -23,6 +22,7 @@ GameObject:
   - component: {fileID: 6946586845989216466}
   - component: {fileID: 1345343967628487573}
   - component: {fileID: 4470616102690321169}
+  - component: {fileID: 4764578356839365712}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -73,27 +73,6 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 80
   m_CollisionDetection: 1
---- !u!65 &7852074317539528960
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4081845051979697095}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1, y: 1.6779563, z: 1}
-  m_Center: {x: 0, y: 0.8358222, z: 0}
 --- !u!65 &2842868238896400975
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -409,6 +388,29 @@ MonoBehaviour:
   staminaMinToAllowBlock: 1
   staminaMinToAllowDash: 15
   punchesToFullPower: 3
+--- !u!136 &4764578356839365712
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.5
+  m_Height: 1.8661165
+  m_Direction: 1
+  m_Center: {x: 0, y: 0.8715911, z: 0}
 --- !u!1001 &1097781204063221239
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -536,6 +538,10 @@ PrefabInstance:
     - target: {fileID: 7679641636787266966, guid: be3470ce882fc1749aae142f0dc81dc9, type: 3}
       propertyPath: m_Layer
       value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8153101253863224186, guid: be3470ce882fc1749aae142f0dc81dc9, type: 3}
+      propertyPath: m_RenderingLayerMask
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8168683439570882077, guid: be3470ce882fc1749aae142f0dc81dc9, type: 3}
       propertyPath: m_Layer
