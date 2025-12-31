@@ -23,12 +23,18 @@ public class EdgegapPlayClient : MonoBehaviour
     [Header("FishNet References")]
     [SerializeField] private NetworkManager networkManager;
 
+    [Header("Ready Delay")]
+    [Tooltip("Seconds to wait (and countdown) after host/port appear before enabling Play.")]
+    [SerializeField] private int readyCountdownSeconds = 5;
+
     private string _currentRequestId;
     private bool _isPolling;
 
+    private Coroutine _readyCountdownRoutine;
+    private bool _readyCountdownCompleted;
+
     private void Start()
     {
-        // 1. Initial State: Play is DISABLED.
         playButton.interactable = false;
         startServerButton.interactable = true;
 
@@ -50,8 +56,6 @@ public class EdgegapPlayClient : MonoBehaviour
             networkManager.ClientManager.OnClientConnectionState -= OnClientConnectionState;
     }
 
-    // --- CONNECTION HANDLER ---
-    // Only hides UI when FishNet confirms we are actually connected.
     private void OnClientConnectionState(ClientConnectionStateArgs args)
     {
         if (args.ConnectionState == LocalConnectionState.Started)
@@ -64,19 +68,28 @@ public class EdgegapPlayClient : MonoBehaviour
         {
             if (canvasRoot) canvasRoot.SetActive(true);
             SetStatus("Disconnected");
-            playButton.interactable = true;
+
+            if (_readyCountdownCompleted)
+                playButton.interactable = true;
+            else
+                playButton.interactable = false;
         }
     }
-
-    // =================================================================================
-    // SECTION 1: START SERVER (INFRASTRUCTURE ONLY)
-    // =================================================================================
-    // This strictly ONLY spins up the server. It NEVER connects the player.
 
     public void OnStartServerPressed()
     {
         if (_isPolling) return;
+
         startServerButton.interactable = false;
+        playButton.interactable = false;
+        _readyCountdownCompleted = false;
+
+        if (_readyCountdownRoutine != null)
+        {
+            StopCoroutine(_readyCountdownRoutine);
+            _readyCountdownRoutine = null;
+        }
+
         StartCoroutine(StartServerFlow());
     }
 
@@ -85,7 +98,8 @@ public class EdgegapPlayClient : MonoBehaviour
         SetStatus("Requesting Server...");
         string url = CombineUrl(backendBaseUrl, "/api/play");
 
-        yield return PostJson(url, "{}", (ok, res) => {
+        yield return PostJson(url, "{}", (ok, res) =>
+        {
             if (!ok)
             {
                 SetStatus("Request Failed");
@@ -105,14 +119,10 @@ public class EdgegapPlayClient : MonoBehaviour
 
             _currentRequestId = data.request_id;
 
-            // IF SERVER IS READY IMMEDIATELY:
             if (!string.IsNullOrEmpty(data.host) && data.port > 0)
             {
-                SetStatus("Server Ready! Press Play.");
-                playButton.interactable = true; // <--- ONLY ENABLE BUTTON
-                // STOP: Do not connect here.
+                BeginReadyCountdownIfNeeded();
             }
-            // IF SERVER IS STARTING:
             else
             {
                 if (!_isPolling) StartCoroutine(PollStatusLoop());
@@ -131,23 +141,27 @@ public class EdgegapPlayClient : MonoBehaviour
             string url = CombineUrl(backendBaseUrl, "/api/status?request_id=" + _currentRequestId);
             bool serverReady = false;
 
-            yield return Get(url, (ok, res) => {
+            yield return Get(url, (ok, res) =>
+            {
                 if (!ok) return;
 
                 var data = JsonUtility.FromJson<BackendResponse>(res);
-                SetStatus($"Status: {data.status}");
 
-                // IF SERVER BECOMES READY:
                 if (!string.IsNullOrEmpty(data.host) && data.port > 0)
                 {
-                    SetStatus("Server Ready! Press Play.");
-                    playButton.interactable = true; // <--- ONLY ENABLE BUTTON
                     serverReady = true;
-                    // STOP: Do not connect here.
+                }
+                else
+                {
+                    SetStatus($"Status: {data.status}");
                 }
             });
 
-            if (serverReady) break;
+            if (serverReady)
+            {
+                BeginReadyCountdownIfNeeded();
+                break;
+            }
 
             yield return new WaitForSeconds(pollInterval);
             timer += pollInterval;
@@ -162,27 +176,53 @@ public class EdgegapPlayClient : MonoBehaviour
         _isPolling = false;
     }
 
-    // =================================================================================
-    // SECTION 2: PLAY BUTTON (CONNECT LOGIC)
-    // =================================================================================
-    // This is the ONLY place that attempts a connection.
+    private void BeginReadyCountdownIfNeeded()
+    {
+        if (_readyCountdownCompleted) return;
+        if (_readyCountdownRoutine != null) return;
+
+        playButton.interactable = false;
+
+        _readyCountdownRoutine = StartCoroutine(ReadyCountdownRoutine());
+    }
+
+    private IEnumerator ReadyCountdownRoutine()
+    {
+        int t = Mathf.Max(0, readyCountdownSeconds);
+
+        while (t > 0)
+        {
+            SetStatus($"Server found. Waiting {t}...");
+            yield return new WaitForSeconds(1f);
+            t--;
+        }
+
+        _readyCountdownCompleted = true;
+        SetStatus("Server Ready! Press Play.");
+        playButton.interactable = true;
+
+        _readyCountdownRoutine = null;
+    }
 
     public void OnPlayPressed()
     {
-        playButton.interactable = false; // Prevent double-clicks
+        if (!_readyCountdownCompleted)
+            return;
+
+        playButton.interactable = false;
         SetStatus("Refreshing Connection Info...");
         StartCoroutine(RefreshAndConnectSequence());
     }
 
     private IEnumerator RefreshAndConnectSequence()
     {
-        // 1. Get Fresh Info (Just in case the previous info is stale)
         string url = CombineUrl(backendBaseUrl, "/api/play");
         string freshHost = "";
         int freshPort = 0;
         bool requestSuccess = false;
 
-        yield return PostJson(url, "{}", (ok, res) => {
+        yield return PostJson(url, "{}", (ok, res) =>
+        {
             if (ok)
             {
                 var data = JsonUtility.FromJson<BackendResponse>(res);
@@ -202,7 +242,6 @@ public class EdgegapPlayClient : MonoBehaviour
             yield break;
         }
 
-        // 2. NOW we connect
         SetStatus($"Connecting to {freshHost}:{freshPort}...");
         yield return ConnectWithRetry(freshHost, (ushort)freshPort);
     }
@@ -227,17 +266,11 @@ public class EdgegapPlayClient : MonoBehaviour
             networkManager.ClientManager.StartConnection();
             yield return new WaitForSeconds(2.0f);
 
-            // FIX: Using .IsActive for FishNet
             if (networkManager.ClientManager.Connection.IsActive)
-            {
-                yield break; // Success!
-            }
+                yield break;
 
-            // If failed, stop and retry
             if (!networkManager.ClientManager.Connection.IsActive)
-            {
                 networkManager.ClientManager.StopConnection();
-            }
 
             yield return new WaitForSeconds(0.5f);
         }
@@ -246,8 +279,10 @@ public class EdgegapPlayClient : MonoBehaviour
         playButton.interactable = true;
     }
 
-    // --- HELPERS ---
-    private void SetStatus(string s) { if (statusText) statusText.text = s; }
+    private void SetStatus(string s)
+    {
+        if (statusText) statusText.text = s;
+    }
 
     private IEnumerator PostJson(string url, string json, Action<bool, string> cb)
     {

@@ -23,6 +23,7 @@ GameObject:
   - component: {fileID: 1345343967628487573}
   - component: {fileID: 4470616102690321169}
   - component: {fileID: 4764578356839365712}
+  - component: {fileID: -2673279080814227211}
   m_Layer: 6
   m_Name: Player
   m_TagString: Player
@@ -71,7 +72,7 @@ Rigidbody:
   m_UseGravity: 1
   m_IsKinematic: 0
   m_Interpolate: 0
-  m_Constraints: 80
+  m_Constraints: 112
   m_CollisionDetection: 1
 --- !u!65 &2842868238896400975
 BoxCollider:
@@ -132,7 +133,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584345448507763999
+  _initializedTimestamp: -8584344463949222336
   NetworkObserver: {fileID: 0}
   _enablePrediction: 0
   _predictionType: 1
@@ -248,14 +249,14 @@ MonoBehaviour:
   _componentIndexCache: 3
   _addedNetworkObject: {fileID: 1929305692089013964}
   _networkObjectCache: {fileID: 1929305692089013964}
-  moveSpeed: 6
+  moveSpeed: 8
   groundAcceleration: 40
   airAcceleration: 20
   airBrake: 0
-  yawSensitivity: 0.42
+  yawSensitivity: 0.6
   maxYawSpeedDeg: 720
-  dashImpulse: 8
-  dashUpImpulse: 2
+  dashImpulse: 15
+  dashUpImpulse: 3
   dashCooldown: 0.35
   groundMask:
     serializedVersion: 2
@@ -279,10 +280,10 @@ MonoBehaviour:
   _componentIndexCache: 4
   _addedNetworkObject: {fileID: 1929305692089013964}
   _networkObjectCache: {fileID: 1929305692089013964}
-  punchForwardImpulse: 2
-  punchUpImpulse: 1.5
-  kickForwardImpulse: 6
-  kickUpImpulse: 6
+  punchForwardImpulse: 4
+  punchUpImpulse: 2
+  kickForwardImpulse: 10
+  kickUpImpulse: 10
   knockbackSpeedToMultiplier: 0.08
   knockbackMultiplierMin: 0.5
   knockbackMultiplierMax: 1.4
@@ -408,9 +409,26 @@ CapsuleCollider:
   m_Enabled: 1
   serializedVersion: 2
   m_Radius: 0.5
-  m_Height: 1.8661165
+  m_Height: 1.8022981
   m_Direction: 1
-  m_Center: {x: 0, y: 0.8715911, z: 0}
+  m_Center: {x: 0, y: 0.9035003, z: 0}
+--- !u!114 &-2673279080814227211
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4081845051979697095}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 460fc71481640ac4999f092fd95b6b5a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::BoxerGroundGizmoClient
+  groundCheckRadius: 0.1
+  groundCheckDistance: 0.05
+  groundMask:
+    serializedVersion: 2
+    m_Bits: 55
 --- !u!1001 &1097781204063221239
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -543,6 +561,10 @@ PrefabInstance:
       propertyPath: m_RenderingLayerMask
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 8153101253863224186, guid: be3470ce882fc1749aae142f0dc81dc9, type: 3}
+      propertyPath: 'm_Materials.Array.data[0]'
+      value: 
+      objectReference: {fileID: 2100000, guid: b451b61f59cd1b8429caa763925c769d, type: 2}
     - target: {fileID: 8168683439570882077, guid: be3470ce882fc1749aae142f0dc81dc9, type: 3}
       propertyPath: m_Layer
       value: 6
