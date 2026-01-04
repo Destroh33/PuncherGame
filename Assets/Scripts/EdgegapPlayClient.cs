@@ -20,6 +20,10 @@ public class EdgegapPlayClient : MonoBehaviour
     [SerializeField] private Button playButton;
     [SerializeField] private TMP_Text statusText;
 
+    [Header("Name Gate")]
+    [SerializeField] private TMP_InputField nameInputField;
+    [SerializeField] private string playerNamePrefsKey = "PLAYER_DISPLAY_NAME";
+
     [Header("FishNet References")]
     [SerializeField] private NetworkManager networkManager;
 
@@ -36,12 +40,20 @@ public class EdgegapPlayClient : MonoBehaviour
     private void Start()
     {
         playButton.interactable = false;
+        playButton.gameObject.SetActive(true);
         startServerButton.interactable = true;
 
         startServerButton.onClick.AddListener(OnStartServerPressed);
         playButton.onClick.AddListener(OnPlayPressed);
 
+        if (nameInputField != null)
+        {
+            nameInputField.text = PlayerPrefs.GetString(playerNamePrefsKey, "");
+            nameInputField.onValueChanged.AddListener(_ => RefreshPlayInteractable());
+        }
+
         SetStatus("Ready to Start");
+        RefreshPlayInteractable();
     }
 
     private void OnEnable()
@@ -54,6 +66,9 @@ public class EdgegapPlayClient : MonoBehaviour
     {
         if (networkManager?.ClientManager != null)
             networkManager.ClientManager.OnClientConnectionState -= OnClientConnectionState;
+
+        if (nameInputField != null)
+            nameInputField.onValueChanged.RemoveAllListeners();
     }
 
     private void OnClientConnectionState(ClientConnectionStateArgs args)
@@ -68,12 +83,22 @@ public class EdgegapPlayClient : MonoBehaviour
         {
             if (canvasRoot) canvasRoot.SetActive(true);
             SetStatus("Disconnected");
-
-            if (_readyCountdownCompleted)
-                playButton.interactable = true;
-            else
-                playButton.interactable = false;
+            RefreshPlayInteractable();
         }
+    }
+
+    private void RefreshPlayInteractable()
+    {
+        bool hasName = HasValidName();
+        bool canPlay = _readyCountdownCompleted && hasName;
+        playButton.interactable = canPlay;
+        playButton.gameObject.SetActive(_readyCountdownCompleted);
+    }
+
+    private bool HasValidName()
+    {
+        if (nameInputField == null) return true;
+        return !string.IsNullOrWhiteSpace(nameInputField.text);
     }
 
     public void OnStartServerPressed()
@@ -82,6 +107,7 @@ public class EdgegapPlayClient : MonoBehaviour
 
         startServerButton.interactable = false;
         playButton.interactable = false;
+        playButton.gameObject.SetActive(false);
         _readyCountdownCompleted = false;
 
         if (_readyCountdownRoutine != null)
@@ -182,6 +208,7 @@ public class EdgegapPlayClient : MonoBehaviour
         if (_readyCountdownRoutine != null) return;
 
         playButton.interactable = false;
+        playButton.gameObject.SetActive(false);
 
         _readyCountdownRoutine = StartCoroutine(ReadyCountdownRoutine());
     }
@@ -198,8 +225,8 @@ public class EdgegapPlayClient : MonoBehaviour
         }
 
         _readyCountdownCompleted = true;
-        SetStatus("Server Ready! Press Play.");
-        playButton.interactable = true;
+        SetStatus("Server Ready! Enter name + Press Play.");
+        RefreshPlayInteractable();
 
         _readyCountdownRoutine = null;
     }
@@ -208,6 +235,16 @@ public class EdgegapPlayClient : MonoBehaviour
     {
         if (!_readyCountdownCompleted)
             return;
+
+        if (!HasValidName())
+        {
+            SetStatus("Enter a name first.");
+            RefreshPlayInteractable();
+            return;
+        }
+
+        if (nameInputField != null)
+            PlayerPrefs.SetString(playerNamePrefsKey, nameInputField.text.Trim());
 
         playButton.interactable = false;
         SetStatus("Refreshing Connection Info...");
@@ -238,15 +275,15 @@ public class EdgegapPlayClient : MonoBehaviour
         if (!requestSuccess)
         {
             SetStatus("Error: Server not found.");
-            playButton.interactable = true;
+            ResetToFindServerState("Connection Fail, Try Finding Server Again");
             yield break;
         }
 
         SetStatus($"Connecting to {freshHost}:{freshPort}...");
-        yield return ConnectWithRetry(freshHost, (ushort)freshPort);
+        yield return ConnectOnce(freshHost, (ushort)freshPort);
     }
 
-    private IEnumerator ConnectWithRetry(string host, ushort port)
+    private IEnumerator ConnectOnce(string host, ushort port)
     {
         var transport = networkManager.TransportManager.Transport;
         string cleanHost = host.Replace("wss://", "").Replace("ws://", "")
@@ -255,28 +292,33 @@ public class EdgegapPlayClient : MonoBehaviour
         transport.SetClientAddress(cleanHost);
         transport.SetPort(port);
 
-        int maxRetries = 10;
-        int attempts = 0;
+        networkManager.ClientManager.StartConnection();
 
-        while (attempts < maxRetries)
+        yield return new WaitForSeconds(2.0f);
+
+        if (networkManager.ClientManager.Connection.IsActive)
+            yield break;
+
+        networkManager.ClientManager.StopConnection();
+
+        SetStatus("Connection Failed. Click Find Server to try again.");
+        ResetToFindServerState("Find Server");
+    }
+
+    private void ResetToFindServerState(string status)
+    {
+        _readyCountdownCompleted = false;
+        if (_readyCountdownRoutine != null)
         {
-            attempts++;
-            SetStatus($"Connecting ({attempts}/10)...");
-
-            networkManager.ClientManager.StartConnection();
-            yield return new WaitForSeconds(2.0f);
-
-            if (networkManager.ClientManager.Connection.IsActive)
-                yield break;
-
-            if (!networkManager.ClientManager.Connection.IsActive)
-                networkManager.ClientManager.StopConnection();
-
-            yield return new WaitForSeconds(0.5f);
+            StopCoroutine(_readyCountdownRoutine);
+            _readyCountdownRoutine = null;
         }
 
-        SetStatus("Connection Failed. Server may be loading.");
-        playButton.interactable = true;
+        playButton.interactable = false;
+        playButton.gameObject.SetActive(false);
+
+        startServerButton.interactable = true;
+        SetStatus(status);
     }
 
     private void SetStatus(string s)

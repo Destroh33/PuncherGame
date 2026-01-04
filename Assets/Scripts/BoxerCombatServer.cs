@@ -56,14 +56,10 @@ public class BoxerCombatServer : NetworkBehaviour
         if (!IsServerInitialized || _cmd == null)
             return;
 
-        // Kick is a queued one-frame button from CommandBuffer.
-        // CommandBuffer already gates kickPressed unless power is full.
         if (_cmd.ServerCmd.kickPressed)
         {
-            // Consume power on kick start (server authoritative)
             if (_resources != null)
             {
-                // If for any reason power isn't full, deny kick entirely
                 if (!_resources.TryConsumeKickPower())
                     return;
             }
@@ -114,14 +110,12 @@ public class BoxerCombatServer : NetworkBehaviour
             return;
         }
 
-        // PUNCH: per-target cooldown
         if (_nextAllowedPunchHitTimeByTarget.TryGetValue(targetId, out float nextAllowed) && now < nextAllowed)
             return;
 
         ApplyKnockbackToTarget(targetRb, useKick: false);
         _nextAllowedPunchHitTimeByTarget[targetId] = now + punchHitCooldownPerTarget;
 
-        // Award power ONLY when a punch actually lands
         if (_resources != null)
             _resources.OnPunchLanded();
     }
@@ -146,6 +140,13 @@ public class BoxerCombatServer : NetworkBehaviour
         float upScale = Mathf.Lerp(1f, mult, Mathf.Clamp01(upKnockbackMultWeight));
 
         Vector3 impulse = pushDir * (baseForward * forwardScale) + Vector3.up * (baseUp * upScale);
+
+        // NEW: record "last attacker" on the victim, server-side.
+        // Attacker is THIS object's owner connection id.
+        int attackerConnId = (Owner != null) ? Owner.ClientId : -1;
+        BoxerEliminationState victimElim = targetRb.GetComponent<BoxerEliminationState>();
+        if (victimElim != null && attackerConnId >= 0)
+            victimElim.ServerRecordLastAttacker(attackerConnId);
 
         BoxerMotorServer victimMotor = targetRb.GetComponent<BoxerMotorServer>();
         if (victimMotor != null)

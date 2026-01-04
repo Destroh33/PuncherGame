@@ -20,7 +20,7 @@ public class BoxerCommandBuffer : NetworkBehaviour
     public readonly SyncVar<float> NetRunLeft = new SyncVar<float>();
     public readonly SyncVar<bool> NetPunching = new SyncVar<bool>();
     public readonly SyncVar<bool> NetBlocking = new SyncVar<bool>();
-    public readonly SyncVar<bool> NetKickEdge = new SyncVar<bool>();
+    public readonly SyncVar<int> NetKickSeq = new SyncVar<int>();
     public readonly SyncVar<float> NetRunSpeedMult = new SyncVar<float>(1f);
 
     private bool _dashQueued;
@@ -43,11 +43,9 @@ public class BoxerCommandBuffer : NetworkBehaviour
         bool dashPressed,
         bool kickPressed)
     {
-        // Queue edges first
         if (dashPressed) _dashQueued = true;
         if (kickPressed) _kickQueued = true;
 
-        // Resource gating (server authoritative)
         bool allowBlock = _resources == null || _resources.HasStaminaForBlock;
         bool allowDash = _resources == null || _resources.HasStaminaForDash;
         bool allowKick = _resources == null || _resources.HasFullPower;
@@ -71,9 +69,8 @@ public class BoxerCommandBuffer : NetworkBehaviour
         NetPunching.Value = punchHeld;
         NetBlocking.Value = gatedBlockHeld;
 
-        // Animator kick edge: only if actually allowed
         if (gatedKickPressed)
-            NetKickEdge.Value = true;
+            NetKickSeq.Value++;
     }
 
     [Server]
@@ -86,8 +83,5 @@ public class BoxerCommandBuffer : NetworkBehaviour
         c.dashPressed = false;
         c.kickPressed = false;
         ServerCmd = c;
-
-        if (NetKickEdge.Value)
-            NetKickEdge.Value = false;
     }
 }

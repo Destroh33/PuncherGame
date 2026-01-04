@@ -14,17 +14,18 @@ public class BoxerAnimatorView : MonoBehaviour
 
     [Header("Animator Layer Control")]
     [SerializeField] private string handsLayerName = "HandsLayer";
-    [SerializeField] private string kickStateName = "Kick";
+
+    [Header("Run State (for HandsLayer weight)")]
     [SerializeField] private string runBlendStateName = "RunBlend";
 
     private int _handsLayerIndex = -1;
     private BoxerCommandBuffer _cmd;
-    private bool _kickConsumed;
+
+    private int _lastKickSeq = int.MinValue;
 
     private void Awake()
     {
         _cmd = GetComponent<BoxerCommandBuffer>();
-
         if (animator != null)
             _handsLayerIndex = animator.GetLayerIndex(handsLayerName);
     }
@@ -34,21 +35,22 @@ public class BoxerAnimatorView : MonoBehaviour
         if (animator == null || _cmd == null)
             return;
 
-        bool kickEdge = _cmd.NetKickEdge.Value;
-        if (kickEdge && !_kickConsumed)
+        int kickSeq = _cmd.NetKickSeq.Value;
+        if (kickSeq != _lastKickSeq)
         {
-            animator.SetTrigger(kickTriggerParam);
-            _kickConsumed = true;
+            _lastKickSeq = kickSeq;
+            if (kickSeq != 0 && !string.IsNullOrEmpty(kickTriggerParam))
+            {
+                animator.ResetTrigger(kickTriggerParam);
+                animator.SetTrigger(kickTriggerParam);
+            }
         }
-        if (!kickEdge)
-            _kickConsumed = false;
 
         animator.SetFloat(runForwardParam, _cmd.NetRunForward.Value);
         animator.SetFloat(runLeftParam, _cmd.NetRunLeft.Value);
         animator.SetBool(punchingParam, _cmd.NetPunching.Value);
         animator.SetBool(blockingParam, _cmd.NetBlocking.Value);
 
-        // NEW: runspeed multiplier (from server block logic)
         if (!string.IsNullOrEmpty(runSpeedMultParam))
             animator.SetFloat(runSpeedMultParam, _cmd.NetRunSpeedMult.Value);
 
@@ -59,14 +61,6 @@ public class BoxerAnimatorView : MonoBehaviour
     {
         if (_handsLayerIndex < 0) return;
 
-        bool inKick = IsBaseLayerInOrTransitioning(kickStateName);
-        if (inKick)
-        {
-            if (!Mathf.Approximately(animator.GetLayerWeight(_handsLayerIndex), 0f))
-                animator.SetLayerWeight(_handsLayerIndex, 0f);
-            return;
-        }
-
         if (IsBaseLayerInOrTransitioning(runBlendStateName))
         {
             if (!Mathf.Approximately(animator.GetLayerWeight(_handsLayerIndex), 1f))
@@ -76,6 +70,8 @@ public class BoxerAnimatorView : MonoBehaviour
 
     private bool IsBaseLayerInOrTransitioning(string stateName)
     {
+        if (string.IsNullOrEmpty(stateName)) return false;
+
         var cur = animator.GetCurrentAnimatorStateInfo(0);
         if (cur.IsName(stateName))
             return true;
