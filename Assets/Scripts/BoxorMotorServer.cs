@@ -25,18 +25,12 @@ public class BoxerMotorServer : NetworkBehaviour
     [Header("Ground Check")]
     [SerializeField] private LayerMask groundMask = ~0;
     [SerializeField] private float groundCheckRadius = 0.1f;
-    [SerializeField] private float groundCheckDistance = 0.05f;
-    [SerializeField] private float groundStickVelocity = -2f;
-
-    [Header("Ground Stick Control")]
-    [SerializeField] private float disableGroundStickAfterDash = 0.08f;
 
     private Rigidbody _rb;
     private BoxerCommandBuffer _cmd;
     private BoxerResourcesServer _resources;
 
     private float _nextDashAllowedTime;
-    private float _disableGroundStickUntil = -1f;
 
     private float _moveSpeedMult = 1f;
     public void SetMoveSpeedMultiplier(float mult) => _moveSpeedMult = Mathf.Max(0.01f, mult);
@@ -52,7 +46,6 @@ public class BoxerMotorServer : NetworkBehaviour
         if (until > _controlLockedUntil)
             _controlLockedUntil = until;
 
-        _disableGroundStickUntil = Mathf.Max(_disableGroundStickUntil, Time.time + 0.08f);
     }
 
     public override void OnStartNetwork()
@@ -98,20 +91,11 @@ public class BoxerMotorServer : NetworkBehaviour
 
         bool grounded = IsGrounded();
 
-        if (grounded && Time.time >= _disableGroundStickUntil)
-        {
-            Vector3 v0 = _rb.linearVelocity;
-            if (v0.y > groundStickVelocity)
-                _rb.linearVelocity = new Vector3(v0.x, groundStickVelocity, v0.z);
-        }
-
-        // Dash: only if not controlLocked, cooldown ok, AND stamina spend succeeds
+        // Dash Logic
         if (!controlLocked && _cmd.ServerCmd.dashPressed && Time.time >= _nextDashAllowedTime)
         {
-            // If you have resources, require cost payment at the moment of dash.
             if (_resources != null && !_resources.TrySpendDash())
             {
-                // Not enough stamina -> no dash
                 return;
             }
 
@@ -121,18 +105,20 @@ public class BoxerMotorServer : NetworkBehaviour
             dashDir.y = 0f;
 
             Vector3 v = _rb.linearVelocity;
+            // Zero out horizontal velocity before dash for crisp control, keep Y
             _rb.linearVelocity = new Vector3(0f, v.y, 0f);
 
             Vector3 impulse = dashDir * dashImpulse + Vector3.up * dashUpImpulse;
             _rb.AddForce(impulse, ForceMode.Impulse);
 
-            _disableGroundStickUntil = Time.time + disableGroundStickAfterDash;
+            // Removed _disableGroundStickUntil assignment
             return;
         }
 
         if (controlLocked)
             return;
 
+        // Normal Movement
         Vector3 curVel = _rb.linearVelocity;
         Vector3 horiz = new Vector3(curVel.x, 0f, curVel.z);
 
@@ -161,13 +147,11 @@ public class BoxerMotorServer : NetworkBehaviour
 
     private bool IsGrounded()
     {
+        // Using CheckSphere as requested in your snippet
         Vector3 origin = transform.position + Vector3.up * 0.05f;
-        return Physics.SphereCast(
+        return Physics.CheckSphere(
             origin,
             groundCheckRadius,
-            Vector3.down,
-            out _,
-            groundCheckDistance,
             groundMask,
             QueryTriggerInteraction.Ignore
         );

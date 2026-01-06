@@ -241,7 +241,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584341174270130102
+  _initializedTimestamp: -8584339331035885393
   NetworkObserver: {fileID: 0}
   _enablePrediction: 0
   _predictionType: 1
@@ -358,21 +358,18 @@ MonoBehaviour:
   _addedNetworkObject: {fileID: 1929305692089013964}
   _networkObjectCache: {fileID: 1929305692089013964}
   moveSpeed: 8
-  groundAcceleration: 40
-  airAcceleration: 20
+  groundAcceleration: 75
+  airAcceleration: 5
   airBrake: 0
   yawSensitivity: 0.6
   maxYawSpeedDeg: 720
-  dashImpulse: 15
-  dashUpImpulse: 3
-  dashCooldown: 0.35
+  dashImpulse: 12
+  dashUpImpulse: 4
+  dashCooldown: 0.5
   groundMask:
     serializedVersion: 2
     m_Bits: 55
   groundCheckRadius: 0.1
-  groundCheckDistance: 0.05
-  groundStickVelocity: -2
-  disableGroundStickAfterDash: 0.08
 --- !u!114 &-7614335559365608685
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -503,7 +500,7 @@ CapsuleCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4081845051979697095}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: f69884b73c846e14a9c76fead60c0271, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
